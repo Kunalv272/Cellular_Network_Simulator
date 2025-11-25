@@ -44,3 +44,95 @@ const std::vector<UserDevice>& CellTower::getUsersInChannel(size_t idx) const {
 // --- 4G Implementation ---
 // 10 kHz sub-channels, 30 users per sub-channel, up to 4 antennas (MIMO).
 // Each user still takes 10 messages.
+Tower4G::Tower4G(CellularCore* c) : CellTower(1000.0, 4, c) {} // 1000 kHz, 4 antennas
+
+void Tower4G::calculateCapacity() {
+    int subChannelWidthKHz = 10;
+    int subChannels = (int)(bandwidth / subChannelWidthKHz); // 100 sub-channels
+
+    int usersPerSubChannel = 30;
+    int usersPerAntenna = subChannels * usersPerSubChannel;
+    int totalUsers = usersPerAntenna * antennas; // reuse channels via antennas
+
+    int messagesPerUser = 10;
+    core->addTraffic(totalUsers * messagesPerUser);
+
+    // Users in the first 10 kHz sub-channel (independent of antenna index)
+    frequencyUsers.clear();
+    frequencyUsers.resize(1);
+    for (int uid = 1; uid <= usersPerSubChannel; ++uid) {
+        frequencyUsers[0].emplace_back(uid, messagesPerUser);
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(ioMutex);
+        io.outputstring("--- 4G Analysis ---\n");
+        io.outputstring("Sub-channels (10kHz): ");
+        io.outputint(subChannels);
+        io.terminate();
+
+        io.outputstring("Antennas: ");
+        io.outputint(antennas);
+        io.terminate();
+
+        io.outputstring("Total Users (all antennas): ");
+        io.outputint(totalUsers);
+        io.terminate();
+
+        io.outputstring("Users in first 10kHz sub-channel: ");
+        for (const auto& u : frequencyUsers[0]) {
+            io.outputint(u.getId());
+            io.outputstring(" ");
+        }
+        io.terminate();
+        io.terminate();
+    }
+}
+
+// --- 5G Implementation ---
+// Base band: similar to 4G but with 16 antennas.
+// High-frequency band: extra 10 MHz at 1800 MHz; 30 users per 1 MHz,
+// with massive MIMO (16 antennas). Each user: 10 messages.
+Tower5G::Tower5G(CellularCore* c) : CellTower(1000.0, 16, c) {} // base band 1 MHz, 16 antennas
+
+void Tower5G::calculateCapacity() {
+    // 1. Base band (10 kHz sub-channels, like 4G but more antennas)
+    int subChannelWidthKHz = 10;
+    int subChannels = (int)(bandwidth / subChannelWidthKHz); // 100 sub-channels
+    int usersPerSubChannel = 30;
+    int baseUsers = (subChannels * usersPerSubChannel) * antennas;
+
+    // 2. High-frequency band: 10 MHz at 1800 MHz,
+    // 30 users per 1 MHz * 16 antennas (massive MIMO)
+    int highBandMHz = 10;
+    int usersPerMHz = 30 * antennas;
+    int highBandUsers = highBandMHz * usersPerMHz;
+
+    int totalUsers = baseUsers + highBandUsers;
+
+    int messagesPerUser = 10;
+    core->addTraffic(totalUsers * messagesPerUser);
+
+    // Users in the first 1 MHz high-frequency channel at 1800 MHz
+    frequencyUsers.clear();
+    frequencyUsers.resize(1);
+    for (int uid = 1; uid <= usersPerMHz; ++uid) {
+        frequencyUsers[0].emplace_back(uid, messagesPerUser);
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(ioMutex);
+        io.outputstring("--- 5G Analysis ---\n");
+        io.outputstring("Total Users (base + high band): ");
+        io.outputint(totalUsers);
+        io.terminate();
+
+        io.outputstring("Users in first 1MHz high-frequency channel: ");
+        for (const auto& u : frequencyUsers[0]) {
+            io.outputint(u.getId());
+            io.outputstring(" ");
+        }
+        io.terminate();
+        io.terminate();
+    }
+}
