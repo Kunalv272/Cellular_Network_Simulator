@@ -40,6 +40,85 @@ const std::vector<UserDevice>& CellTower::getUsersInChannel(size_t idx) const {
 
 // --- 2G Implementation ---
 // 1 MHz total; 16 users per 200 kHz; each user: 5 data + 15 voice = 20 messages.
+Tower2G::Tower2G(CellularCore* c) : CellTower(1000.0, 1, c) {} // 1000 kHz = 1 MHz
+
+void Tower2G::calculateCapacity() {
+    int channelWidthKHz = 200;
+    int channels = (int)(bandwidth / channelWidthKHz); // 1000 / 200 = 5
+    int usersPerChannel = 16;
+    int totalUsers = channels * usersPerChannel;
+
+    int messagesPerUser = 5 + 15; // data + voice
+    core->addTraffic(totalUsers * messagesPerUser);
+
+    // Build list of users occupying the *first* 200 kHz channel
+    frequencyUsers.clear();
+    frequencyUsers.resize(1);
+    for (int uid = 1; uid <= usersPerChannel; ++uid) {
+        frequencyUsers[0].emplace_back(uid, messagesPerUser);
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(ioMutex);
+        io.outputstring("--- 2G Analysis ---\n");
+        io.outputstring("Users per 200kHz: ");
+        io.outputint(usersPerChannel);
+        io.terminate();
+
+        io.outputstring("Total Users (1 MHz): ");
+        io.outputint(totalUsers);
+        io.terminate();
+
+        io.outputstring("Users in first 200kHz channel: ");
+        for (const auto& u : frequencyUsers[0]) {
+            io.outputint(u.getId());
+            io.outputstring(" ");
+        }
+        io.terminate();
+        io.terminate();
+    }
+}
+
+// --- 3G Implementation ---
+// 32 users per 200 kHz; 10 messages per user, 1 MHz total.
+Tower3G::Tower3G(CellularCore* c) : CellTower(1000.0, 1, c) {}
+
+void Tower3G::calculateCapacity() {
+    int channelWidthKHz = 200;
+    int channels = (int)(bandwidth / channelWidthKHz); // 5 channels
+    int usersPerChannel = 32;
+    int totalUsers = channels * usersPerChannel;
+
+    int messagesPerUser = 10;
+    core->addTraffic(totalUsers * messagesPerUser);
+
+    // Users in the first 200 kHz channel
+    frequencyUsers.clear();
+    frequencyUsers.resize(1);
+    for (int uid = 1; uid <= usersPerChannel; ++uid) {
+        frequencyUsers[0].emplace_back(uid, messagesPerUser);
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(ioMutex);
+        io.outputstring("--- 3G Analysis ---\n");
+        io.outputstring("Users per 200kHz: ");
+        io.outputint(usersPerChannel);
+        io.terminate();
+
+        io.outputstring("Total Users (1 MHz): ");
+        io.outputint(totalUsers);
+        io.terminate();
+
+        io.outputstring("Users in first 200kHz channel: ");
+        for (const auto& u : frequencyUsers[0]) {
+            io.outputint(u.getId());
+            io.outputstring(" ");
+        }
+        io.terminate();
+        io.terminate();
+    }
+}
 
 // --- 4G Implementation ---
 // 10 kHz sub-channels, 30 users per sub-channel, up to 4 antennas (MIMO).
