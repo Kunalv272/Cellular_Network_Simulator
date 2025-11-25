@@ -1,38 +1,32 @@
-/* NetworkSim.h */
-#ifndef NETWORK_SIM_H
-#define NETWORK_SIM_H
+#pragma once
 
-#include "Basicio.h"
-#include <mutex>  // <--- FIXED: Needed for std::mutex
-#include <thread> // <--- Added for threading support
+#include "basicIO.h"
+#include <mutex>
 #include <vector>
+#include <thread>
 
-// Custom Exception
-class SimulationException {
+// Custom Exception for the project
+class NetworkException {
 private:
-    const char* message;
+    const char* msg;
 public:
-    SimulationException(const char* msg) : message(msg) {}
-    const char* getMessage() const { return message; }
+    NetworkException(const char* m) : msg(m) {}
+    const char* getMessage() const { return msg; }
 };
 
-// Template Class for a Frequency Channel
+// 1. Template Class: Channel (Data Abstraction)
 template <typename T>
 class Channel {
 private:
     T* users;
     int capacity;
     int currentCount;
-    double frequencyBand;
-
+    double frequency; // in kHz or MHz (abstract)
 public:
-    Channel(int cap, double band) : capacity(cap), currentCount(0), frequencyBand(band) {
+    Channel(int cap, double freq) : capacity(cap), currentCount(0), frequency(freq) {
         users = new T[capacity];
     }
-    
-    ~Channel() {
-        delete[] users;
-    }
+    ~Channel() { delete[] users; }
 
     bool addUser(T user) {
         if (currentCount < capacity) {
@@ -41,96 +35,83 @@ public:
         }
         return false;
     }
-
     int getCount() const { return currentCount; }
-    int getCapacity() const { return capacity; }
+    double getFrequency() const { return frequency; }
 };
 
-// --- Base Classes ---
-
+// User Device Class
 class UserDevice {
 private:
     int id;
-    int messageCount;
+    int messages;
 public:
-    UserDevice() : id(0), messageCount(0) {}
-    UserDevice(int uid, int msgs) : id(uid), messageCount(msgs) {}
+    UserDevice() : id(0), messages(0) {}
+    UserDevice(int uid, int msgs) : id(uid), messages(msgs) {}
+
+    int getMessages() const { return messages; }
     int getId() const { return id; }
-    int getMessages() const { return messageCount; }
 };
 
+// Cellular Core (The Central Server)
 class CellularCore {
 private:
-    long totalMessagesProcessed;
-    const long MESSAGE_LIMIT_PER_CORE = 100000;
-    std::mutex coreMutex; // <--- The Lock
+    long totalMessages;
+    std::mutex coreMutex; // Data Hiding & Thread Safety
+
+    // Per problem statement: overhead is modeled per 100 messages.
+    static const long MESSAGES_PER_OVERHEAD_BLOCK = 100;
+    // Assume a single core can handle this many "overhead blocks"
+    static const long OVERHEAD_BLOCKS_PER_CORE    = 1000; // => 100 * 1000 = 100000 msgs/core
 
 public:
     CellularCore();
-    void processMessages(int count); // Thread-safe adder
-    int getRequiredCores();          // Thread-safe getter
+    void addTraffic(int msgs);
+    int getRequiredCores();
 };
 
+// Abstract Base Class (Polymorphism)
 class CellTower {
 protected:
-    double totalBandwidth;
+    double bandwidth;   // in kHz or MHz depending on interpretation
     int antennas;
     CellularCore* core;
-    
+
+    // For "identify the users occupying a specific frequency/channel"
+    // we store the users per channel. We only need channel 0 for the assignment.
+    std::vector<std::vector<UserDevice>> frequencyUsers;
+
 public:
-    CellTower(double bandwidth, int numAntennas, CellularCore* c);
+    CellTower(double bw, int ant, CellularCore* c);
     virtual ~CellTower() {}
-    
-    virtual void calculateCapacity() = 0; 
-    virtual void printStats() = 0;
-    
-    void printInt(int num);
-    void printStr(const char* str);
+
+    // Pure virtual function
+    virtual void calculateCapacity() = 0;
+
+    // Accessor if we ever want to query from outside
+    const std::vector<UserDevice>& getUsersInChannel(size_t idx) const;
 };
 
-// --- Derived Classes ---
-
+// Derived Classes
 class Tower2G : public CellTower {
-private:
-    const double CHANNEL_WIDTH = 200.0;
-    const int USERS_PER_CHANNEL = 16;
-    const int MSGS_PER_USER = 20;
 public:
     Tower2G(CellularCore* c);
     void calculateCapacity() override;
-    void printStats() override;
 };
 
 class Tower3G : public CellTower {
-private:
-    const double CHANNEL_WIDTH = 200.0; 
-    const int USERS_PER_CHANNEL = 32;
-    const int MSGS_PER_USER = 10;
 public:
     Tower3G(CellularCore* c);
     void calculateCapacity() override;
-    void printStats() override;
 };
 
 class Tower4G : public CellTower {
-private:
-    const double CHANNEL_WIDTH = 10.0;
-    const int USERS_PER_CHANNEL = 30;
-    const int MSGS_PER_USER = 10;
 public:
     Tower4G(CellularCore* c);
     void calculateCapacity() override;
-    void printStats() override;
 };
 
 class Tower5G : public CellTower {
-private:
-    const double HIGH_FREQ_BANDWIDTH = 10000.0;
-    const int USERS_PER_MHZ_HIGH = 30;
 public:
     Tower5G(CellularCore* c);
     void calculateCapacity() override;
-    void printStats() override;
 };
-
-#endif

@@ -1,51 +1,46 @@
-/* NetworkSim.cpp */
 #include "NetworkSim.h"
-std::mutex printMutex;
-// Helper for String Conversion
-void itoa(int n, char* s) {
-    int i = 0, j = 0, sign = n;
-    if ((sign = n) < 0) n = -n;
-    do {
-        s[i++] = n % 10 + '0';
-    } while ((n /= 10) > 0);
-    if (sign < 0) s[i++] = '-';
-    s[i] = '\0';
-    for (j = 0; j < i / 2; j++) {
-        char temp = s[j];
-        s[j] = s[i - 1 - j];
-        s[i - 1 - j] = temp;
-    }
-}
 
-// --- CellularCore (Thread-Safe) ---
-CellularCore::CellularCore() : totalMessagesProcessed(0) {}
+// Global Mutex for IO to prevent overlapping text from threads
+std::mutex ioMutex;
 
-void CellularCore::processMessages(int count) {
-    // Lock the mutex so only one thread can add at a time
+// --- CellularCore ---
+CellularCore::CellularCore() : totalMessages(0) {}
+
+void CellularCore::addTraffic(int msgs) {
     std::lock_guard<std::mutex> lock(coreMutex);
-    totalMessagesProcessed += count;
+    totalMessages += msgs;
 }
 
 int CellularCore::getRequiredCores() {
-    // Lock while reading to ensure we don't read while someone else writes
     std::lock_guard<std::mutex> lock(coreMutex);
-    if (totalMessagesProcessed == 0) return 1;
-    return (totalMessagesProcessed + MESSAGE_LIMIT_PER_CORE - 1) / MESSAGE_LIMIT_PER_CORE;
+    if (totalMessages == 0) return 1;
+
+    // Model "overhead per 100 messages":
+    // 1 overhead block = 100 messages
+    long overheadBlocks =
+        (totalMessages + MESSAGES_PER_OVERHEAD_BLOCK - 1) / MESSAGES_PER_OVERHEAD_BLOCK;
+
+    // Each core can handle OVERHEAD_BLOCKS_PER_CORE blocks
+    long cores =
+        (overheadBlocks + OVERHEAD_BLOCKS_PER_CORE - 1) / OVERHEAD_BLOCKS_PER_CORE;
+
+    return (int)cores;
 }
 
-// --- CellTower ---
-CellTower::CellTower(double bw, int ant, CellularCore* c) 
-    : totalBandwidth(bw), antennas(ant), core(c) {}
+// --- CellTower Base ---
+CellTower::CellTower(double bw, int ant, CellularCore* c)
+    : bandwidth(bw), antennas(ant), core(c) {}
 
-void CellTower::printStr(const char* str) {
-    print((char*)str); 
+const std::vector<UserDevice>& CellTower::getUsersInChannel(size_t idx) const {
+    if (idx >= frequencyUsers.size()) {
+        throw NetworkException("Channel index out of range");
+    }
+    return frequencyUsers[idx];
 }
 
-void CellTower::printInt(int num) {
-    char buffer[20];
-    itoa(num, buffer);
-    print(buffer);
-}
+// --- 2G Implementation ---
+// 1 MHz total; 16 users per 200 kHz; each user: 5 data + 15 voice = 20 messages.
 
-
-
+// --- 4G Implementation ---
+// 10 kHz sub-channels, 30 users per sub-channel, up to 4 antennas (MIMO).
+// Each user still takes 10 messages.

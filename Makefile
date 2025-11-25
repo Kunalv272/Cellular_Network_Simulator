@@ -1,37 +1,31 @@
-# Makefile
-CXX = g++
-AS = as
-# Added -pthread here. -no-pie is for the assembly link.
-CXXFLAGS = -Wall -std=c++17 -no-pie -pthread
-DEBUG_FLAGS = -g -DDEBUG_MODE
-OPT_FLAGS = -O3
+# Compiler and tools
+CXX       = g++
+CXXFLAGS  = -std=c++17 -O2 -pthread
+NASM      = nasm
+NASMFLAGS = -f elf64
 
-OBJS = main.o NetworkSim.o Basicio.o syscall.o
+# Target
+TARGET = sim_opt
 
-all: debug optimized
+# Sources and objects
+SRCS = main.cpp NetworkSim.cpp basicIO.cpp
+OBJS = $(SRCS:.cpp=.o) syscall.o
 
-debug: CXXFLAGS += $(DEBUG_FLAGS)
-debug: clean_objs $(OBJS)
-	$(CXX) $(CXXFLAGS) -o sim_debug $(OBJS)
+.PHONY: all clean
 
-optimized: CXXFLAGS += $(OPT_FLAGS)
-optimized: clean_objs $(OBJS)
-	$(CXX) $(CXXFLAGS) -o sim_opt $(OBJS)
+all: $(TARGET)
 
-main.o: main.cpp
-	$(CXX) $(CXXFLAGS) -c main.cpp
+# Link with custom _start from syscall.o
+$(TARGET): $(OBJS)
+	$(CXX) $(CXXFLAGS) -nostartfiles $(OBJS) -o $(TARGET)
 
-NetworkSim.o: NetworkSim.cpp
-	$(CXX) $(CXXFLAGS) -c NetworkSim.cpp
+# C++ compilation
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-Basicio.o: Basicio.cpp
-	$(CXX) $(CXXFLAGS) -c Basicio.cpp
-
+# Assemble syscall.s with NASM
 syscall.o: syscall.s
-	$(AS) -o syscall.o syscall.s
-
-clean_objs:
-	rm -f *.o
+	$(NASM) $(NASMFLAGS) $< -o $@
 
 clean:
-	rm -f *.o sim_debug sim_opt
+	rm -f *.o $(TARGET)

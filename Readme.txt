@@ -1,35 +1,26 @@
+Cellular Network Simulator
+--------------------------
 
-Network Simulator Project
--------------------------
+How to Build:
+1. Ensure `nasm` (assembler) and `g++` are installed.
+2. Run `make` to build the optimized binary `sim_opt`.
+3. Run `./sim_opt` to execute.
 
-Included Files:
-1. NetworkSim.h   - Header file defining classes, templates, and hierarchy.
-2. NetworkSim.cpp - Implementation of 2G, 3G, 4G, 5G logic.
-3. main.cpp       - Main execution loop and exception handling.
-4. Makefile       - Build script.
-5. Basicio.cpp/.h - (Required) Provided I/O library.
-6. syscall.s      - (Required) Provided assembly system calls.
+Architecture:
+- The project uses a custom `_start` entry point defined in `syscall.s`.
+- `basicIO` handles all I/O via direct system calls (bypassing <iostream>).
+- `NetworkSim` defines the OOP hierarchy for 2G, 3G, 4G, and 5G towers.
+- `std::thread` and `std::mutex` are used to simulate concurrent network generation activity.
 
-Compilation:
-To build the project, open a terminal in the directory and run:
+Files:
+- syscall.s: Custom assembly entry point and system wrappers.
+- basicIO.cpp/h: Provided IO class implementation.
+- NetworkSim.cpp/h: Simulation logic, OOP classes, and Templates.
+- main.cpp: Thread orchestration.
+- BlockStandardIO.h: Empty dummy file to satisfy dependencies.
 
-    make all
-
-This will generate two executables:
-1. sim_debug (includes debugging symbols)
-2. sim_opt   (optimized for performance)
-
-Execution:
-Run the optimized binary:
-    ./sim_opt
-
-Logic Overview:
-- 2G: 1MHz total / 200kHz channels = 5 channels. 16 users/channel.
-- 3G: 1MHz total / 200kHz channels = 5 channels. 32 users/channel (CDMA).
-- 4G: 1MHz total / 10kHz sub-channels. 30 users/sub-channel. 4x MIMO antennas.
-- 5G: 4G Base + 10MHz High Freq Band (at 30 users/MHz). 16x Massive MIMO.
-
-Note:
-This program strictly uses the provided Basicio library for output, avoiding
-standard C++ iostreams to meet system constraints. Integer-to-string conversion
-is handled manually within NetworkSim.cpp.
+Logic:
+- 2G: 16 users/200kHz.
+- 3G: 32 users/200kHz (CDMA).
+- 4G: 30 users/10kHz * 4 Antennas.
+- 5G: Base 4G capacity (with 16 antennas) + High Band capacity (30 users/MHz * 16 antennas).
